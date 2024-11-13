@@ -1,0 +1,51 @@
+# PyTorch240 Debug Container v2.1
+Date: 2024-11-11
+Status: Development
+
+## Overview
+Enhanced debug container adding nginx and SSH support while maintaining simple architecture.
+
+## Features
+- Base: PyTorch 2.4.0, Python 3.11, CUDA 12.4.1
+- Services: 
+  - Jupyter Lab (Port 8888)
+  - SSH Server (Port 22)
+  - Nginx Proxy (Port 80)
+- Authentication:
+  - Consistent password: '1234'
+  - Root SSH access enabled
+  - Jupyter Lab password authentication
+- Terminal Support:
+  - Integrated terminal in JupyterLab
+  - SSH terminal access
+  - Full bash environment
+
+## Development
+```bash
+# Build container
+docker build -t pytorch240-dev:v2.1 .
+
+# Run locally
+docker run -p 8888:8888 -p 22:22 -p 80:80 pytorch240-dev:v2.1
+```
+
+## Testing
+1. Access Points
+   - Jupyter direct: http://localhost:8888
+   - Jupyter via nginx: http://localhost:80
+   - SSH: ssh -p 22 root@localhost
+
+2. Verification
+   - Jupyter Lab functionality
+   - Terminal access in JupyterLab
+   - CUDA/GPU detection
+   - SSH access
+   - Nginx proxy
+
+## Changes from v2.0
+- Added nginx reverse proxy
+- Added SSH server
+- Added git support
+- Enhanced Python environment
+- Improved service logging
+- Added terminal support

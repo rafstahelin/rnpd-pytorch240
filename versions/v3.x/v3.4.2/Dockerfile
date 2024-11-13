@@ -1,7 +1,8 @@
-# PyTorch240 Production Container v3.3
+# PyTorch240 Production Container v3.4.2
+# Focus: Weights & Biases Integration
 FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 
-# Set environment variables with proper defaults
+# Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     # Service configuration
@@ -14,10 +15,15 @@ ENV DEBIAN_FRONTEND=noninteractive \
     GITHUB_BRANCH=main \
     # Workspace configuration
     WORKSPACE_PATH=/workspace \
+    # WANDB configuration
+    WANDB_DIR=/workspace/.wandb \
+    WANDB_CACHE_DIR=/workspace/.cache/wandb \
+    WANDB_CONFIG_DIR=/workspace/.config/wandb \
+    # HF configuration (from v3.4.1)
+    HF_HOME=/workspace/.cache/huggingface \
     # Version tracking
-    CONTAINER_VERSION=v3.3
+    CONTAINER_VERSION=v3.4.2
 
-# Install system dependencies with cleanup
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
@@ -29,40 +35,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     npm \
     bash \
     xterm \
-    cron \
     htop \
     dos2unix \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /root/.cache/*
 
-# Setup service directories
-RUN mkdir -p /var/run/{jupyter,sshd} && \
-    chmod 777 /var/run/jupyter
-
-# Configure SSH with password
-RUN echo "root:1234" | chpasswd && \
+# Configure SSH
+RUN mkdir -p /var/run/sshd && \
+    echo "root:1234" | chpasswd && \
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    # Generate SSH host keys
     ssh-keygen -A
-
-# Configure nginx
-RUN echo 'server { \
-    listen 80; \
-    server_name localhost; \
-    client_max_body_size 100M; \
-    location / { \
-        proxy_pass http://localhost:8888; \
-        proxy_set_header Host $host; \
-        proxy_set_header X-Real-IP $remote_addr; \
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
-        proxy_set_header X-Forwarded-Proto $scheme; \
-        proxy_set_header Upgrade $http_upgrade; \
-        proxy_set_header Connection "upgrade"; \
-        proxy_http_version 1.1; \
-        proxy_buffering off; \
-        proxy_read_timeout 86400; \
-    } \
-}' > /etc/nginx/sites-available/default
 
 # Install Python packages
 RUN pip install --no-cache-dir \
@@ -76,19 +60,31 @@ RUN pip install --no-cache-dir \
     black==24.2.* \
     pylint==3.1.* \
     pyyaml==6.0.* \
+    # WANDB specific packages
+    wandb==0.16.* \
+    pandas==2.2.* \
+    matplotlib==3.8.* \
+    seaborn==0.13.* \
+    # HF packages (from v3.4.1)
+    huggingface-hub==0.20.* \
+    transformers==4.37.* \
+    datasets==2.17.* \
     && rm -rf /root/.cache/pip
 
 # Setup workspace structure
-RUN mkdir -p /workspace/SimpleTuner/{config,datasets,output} && \
-    mkdir -p /workspace/StableSwarmUI/Models/Lora/flux && \
-    mkdir -p /workspace/file-scripts && \
-    chmod -R 777 /workspace && \
-    chown -R root:root /workspace
+RUN mkdir -p /workspace/SimpleTuner/{config,datasets,output} \
+    /workspace/StableSwarmUI/Models/Lora/flux \
+    /workspace/file-scripts \
+    /workspace/.wandb \
+    /workspace/.cache/wandb \
+    /workspace/.config/wandb \
+    /workspace/.cache/huggingface \
+    && chmod -R 777 /workspace \
+    && chown -R root:root /workspace
 
-# Copy and prepare startup script
-COPY start.sh /start.sh
-RUN dos2unix /start.sh && \
-    chmod +x /start.sh
+# Copy scripts
+COPY versions/v3.x/v3.4.2/start.sh /start.sh
+RUN dos2unix /start.sh && chmod +x /start.sh
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
@@ -97,7 +93,7 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
 # Expose ports
 EXPOSE $JUPYTER_PORT $SSH_PORT 80
 
-# Set working directory explicitly
+# Set working directory
 WORKDIR /workspace
 
 # Start services
